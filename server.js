@@ -22,7 +22,7 @@ app.use(fileUpload());
 const db = mysql.createConnection({
   host: "fdb1029.awardspace.net",
   user: "4504527_seapawn",
-  password: "gkTMUJ5!0LBjq6ol",
+  password: "b0]]AoD:1],1^tbe",
   database: "4504527_seapawn",
 });
 
