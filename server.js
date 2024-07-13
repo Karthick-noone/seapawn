@@ -20,10 +20,10 @@ app.use(bodyParser.json());
 app.use(fileUpload());
 
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "finance",
+  host: "fdb1029.awardspace.net",
+  user: "4504527_seapawn",
+  password: "gkTMUJ5!0LBjq6ol",
+  database: "4504527_seapawn",
 });
 
 db.connect((err) => {
