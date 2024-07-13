@@ -23,7 +23,7 @@ const db = mysql.createConnection({
   host: "localhost",
   user: "root",
   password: "",
-  database: "ffinance",
+  database: "finance",
 });
 
 db.connect((err) => {
@@ -58,7 +58,7 @@ app.get("/check-company", (req, res) => {
     }
   });
 });
- 
+
 app.get("/company-logo", (req, res) => {
   const getLogoQuery = "SELECT clogo FROM cmpany_details LIMIT 1"; // Assuming you only have one row in cmpany_details
 
@@ -69,10 +69,9 @@ app.get("/company-logo", (req, res) => {
     }
 
     if (result.length > 0) {
-      const logoFileName = result[0].clogo;
-      console.log("logo", logoFileName);
+      const logoFileName = result[0].clogo || "seapawn_logo.png";
+      // console.log("logo", logoFileName);
       const logoPath = path.join(__dirname, "log", logoFileName); // Construct absolute path
-      console.log("logo path", logoPath);
 
       // Send the image as a response
       res.sendFile(logoPath, (err) => {
@@ -138,9 +137,7 @@ app.post("/regis", async (req, res) => {
   }
 
   const logoFileName = `${uuidv4()}.png`;
-  const logoPath = path.join(__dirname, "log",
-    logoFileName
-  );
+  const logoPath = path.join(__dirname, "log", logoFileName);
   console.log(logoFileName);
   console.log(logoPath);
   logo.mv(logoPath, async (err) => {
@@ -335,7 +332,7 @@ app.post("/submit-loan-application", async (req, res) => {
 
     // Insert data into the pawn_ticket table
     const insertQuery =
-      "INSERT INTO pawn_ticket (id, gl_no, gl_no_sl, gl_no_yr, dt, nm, place, addr, post_off, pincode, amt, pawn_intrest, aadhar, cust_mob, nomi_nm, nomi_rela, status, period_agree, third_mnth_interest_yes_or_no, third_mnth_interest_per_mnth, kootuvatti_yes_or_no, koottuvatti_intrest, aprox_value, tot_amt_with_kootuvatti, one_yr_amt, one_mnth_amt, one_day_amt, seven_day_amt, cmp_ln_no, cmp_off_mob, brch_id, cmp_nm, article, weight, cur_bala, third_mnth_start_dt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_date)";
+      "INSERT INTO pawn_ticket (id, gl_no, gl_no_sl, gl_no_yr, dt, nm, place, addr, post_off, pincode, amt, pawn_intrest, aadhar, cust_mob, nomi_nm, nomi_rela, status, period_agree, third_mnth_interest_yes_or_no, third_mnth_interest_per_mnth, kootuvatti_yes_or_no, koottuvatti_intrest, aprox_value, tot_amt_with_kootuvatti, one_yr_amt, one_mnth_amt, one_day_amt, seven_day_amt, cmp_ln_no, cmp_off_mob, brch_id, cmp_nm, article, weight, cur_bala, cust_pic, closed_dt, tot_paid, kootuvatti_amt, third_mnth_start_dt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '0000-00-00', '0', '0', current_date)";
     const values = [
       newId, // Use the calculated newId
       formData.glNo,
@@ -412,7 +409,7 @@ app.post("/submit-loan-application", async (req, res) => {
     // Insert data into memb_article_list table
     for (let i = 0; i < articleDetailsArray.length; i++) {
       const insertArticleQuery =
-        "INSERT INTO memb_article_list (row_id, date, gl_no, arti, grm) VALUES (?, ?, ?, ?, ?)";
+        "INSERT INTO memb_article_list (row_id, date, gl_no, arti, grm, drop_stus, drop_dt, close_dt) VALUES (?, ?, ?, ?, ?, '', '0000-00-00', '0000-00-00')";
       let grmValue;
       if (i === 0) {
         // For the first iteration, insert remaining weight
@@ -872,7 +869,6 @@ app.get("/fetch-pawn-settings", (req, res) => {
         postalchrge: result[0].postalchrge,
       };
 
-      // Send the pawn settings data as a JSON response
       return res.status(200).json(pawnSettingsData);
     } else {
       return res.status(404).json({ error: "Pawn settings not found" });
@@ -910,9 +906,7 @@ app.post("/upload-logo", (req, res) => {
   }
 
   const logoFileName = `${uuidv4()}.png`;
-  const logoPath = path.join(__dirname, "log",
-    logoFileName
-  );
+  const logoPath = path.join(__dirname, "log", logoFileName);
 
   // Assuming you have logic to get the old logo filename from the database
   const getOldLogoQuery = "SELECT clogo FROM cmpany_details WHERE id = 1"; // Assuming you want to get the logo filename from the first row
@@ -925,16 +919,22 @@ app.post("/upload-logo", (req, res) => {
 
     const oldLogoFileName = result[0].clogo;
 
-    // Unlink the old logo file
-    const oldLogoPath = path.join(__dirname, "log",
-      oldLogoFileName
-    );
-    fs.unlink(oldLogoPath, (unlinkErr) => {
-      if (unlinkErr) {
-        console.error("Error unlinking old logo file:", unlinkErr);
-        return res.status(500).json({ error: "Internal Server Error" });
-      }
+    if (oldLogoFileName) {
+      // Unlink the old logo file
+      const oldLogoPath = path.join(__dirname, "log", oldLogoFileName);
+      fs.unlink(oldLogoPath, (unlinkErr) => {
+        if (unlinkErr && unlinkErr.code !== "ENOENT") {
+          // Check if the file exists before unlinking
+          console.error("Error unlinking old logo file:", unlinkErr);
+          return res.status(500).json({ error: "Internal Server Error" });
+        }
+        moveNewLogo();
+      });
+    } else {
+      moveNewLogo();
+    }
 
+    function moveNewLogo() {
       // Move the new logo file
       logoFile.mv(logoPath, async (mvErr) => {
         if (mvErr) {
@@ -957,7 +957,7 @@ app.post("/upload-logo", (req, res) => {
             .json({ message: "Logo uploaded successfully" });
         });
       });
-    });
+    }
   });
 });
 
@@ -1067,33 +1067,62 @@ app.put("/updateBranchStatus/:id", (req, res) => {
   );
 });
 
+// server.js
 app.post("/addBranch", (req, res) => {
   const branchData = req.body;
 
-  // Get the current maximum id from the table
+  if (!branchData) {
+    res.status(400).send("Bad Request: No data received");
+    return;
+  }
+
+  // Check if the contact number already exists
   db.query(
-    "SELECT IFNULL(MAX(id), 0) + 1 AS next_id FROM branches",
+    "SELECT COUNT(*) AS count FROM branches WHERE contact = ?",
+    [branchData.contact],
     (error, results) => {
       if (error) {
-        console.error("Error retrieving max id:", error);
+        console.error("Error checking contact number:", error);
         res.status(500).send("Internal Server Error");
       } else {
-        const nextId = results[0].next_id;
+        const contactCount = results[0].count;
+        console.log(contactCount);
+        if (contactCount > 0) {
+          // Contact number already exists, send 408 response
+          res.status(409).send("Contact number already exists");
+        } else {
+          // Get the current maximum id from the table
+          db.query(
+            "SELECT IFNULL(MAX(id), 0) + 1 AS next_id FROM branches",
+            (error, results) => {
+              if (error) {
+                console.error("Error retrieving max id:", error);
+                res.status(500).send("Internal Server Error");
+              } else {
+                const nextId = results[0].next_id;
 
-        // Set the id for the new branch data
-        branchData.id = nextId;
-        branchData.brch_code = "BRH000" + nextId;
+                // Set the id for the new branch data
+                branchData.id = nextId;
+                branchData.brch_code = "BRH000" + nextId;
 
-        // Insert the new branch data
-        db.query("INSERT INTO branches SET ?", branchData, (insertError) => {
-          if (insertError) {
-            console.error("Error inserting branch:", insertError);
-            res.status(500).send("Internal Server Error");
-          } else {
-            console.log("Branch added successfully");
-            res.status(200).send("OK");
-          }
-        });
+                // Insert the new branch data
+                db.query(
+                  "INSERT INTO branches SET ?",
+                  branchData,
+                  (insertError) => {
+                    if (insertError) {
+                      console.error("Error inserting branch:", insertError);
+                      res.status(500).send("Internal Server Error");
+                    } else {
+                      console.log("Branch added successfully");
+                      res.status(200).send("OK");
+                    }
+                  }
+                );
+              }
+            }
+          );
+        }
       }
     }
   );
@@ -1164,50 +1193,23 @@ app.put("/updateBranch/:id", (req, res) => {
 app.post("/addStaff", (req, res) => {
   const staffData = req.body;
 
-  // Get the current maximum id from the table
-  db.query(
-    'SELECT IFNULL(MAX(id), 0) + 1 AS next_id FROM login WHERE dept = "staff"',
-    (error, results) => {
-      if (error) {
-        console.error("Error retrieving max id:", error);
-        res.status(500).send("Internal Server Error");
-      } else {
-        const nextId = results[0].next_id + 1;
-        const nextId1 = results[0].next_id;
-        const nextId2 = results[0].next_id - 1;
-        // console.log(nextId);
-        // console.log(nextId1);
-        // console.log(nextId2);
-
-        if (nextId1 === 1) {
-          // Set the id for the new branch data
-          staffData.id = nextId;
-          staffData.us_nm = "STF000" + nextId1;
-        } else {
-          // Set the id for the new branch data
-          staffData.id = nextId1;
-          staffData.us_nm = "STF000" + nextId2;
-        }
-        // Insert the new branch data
-        db.query("INSERT INTO login SET ?", staffData, (insertError) => {
-          if (insertError) {
-            console.error("Error inserting branch:", insertError);
-            res.status(500).send("Internal Server Error");
-          } else {
-            console.log("Staff added successfully");
-            res.status(200).send("OK");
-          }
-        });
-      }
+  // Insert the new staff data
+  db.query("INSERT INTO login SET ?", staffData, (error, results) => {
+    if (error) {
+      console.error("Error inserting staff:", error);
+      res.status(500).send("Internal Server Error");
+    } else {
+      console.log("Staff added successfully");
+      res.status(200).send("OK");
     }
-  );
+  });
 });
 
 // Fetch branches data
 app.get("/getStaffs", (req, res) => {
   db.query("SELECT * FROM login", (error, results) => {
     if (error) {
-      console.error("Error fetching branches:", error);
+      console.error("Error fetching staff data:", error);
       res.status(500).send("Internal Server Error");
     } else {
       res.json(results);
@@ -1219,14 +1221,13 @@ app.get("/getStaffs", (req, res) => {
 app.put("/updateStaffStatus/:id", (req, res) => {
   const staffId = req.params.id;
   const { active_dactive } = req.body;
-  console.log(staffId);
 
   db.query(
     "UPDATE login SET active_dactive = ? WHERE id = ?",
     [active_dactive, staffId],
     (error, results) => {
       if (error) {
-        console.error("Error updating branch status:", error);
+        console.error("Error updating staff status:", error);
         res.status(500).send("Internal Server Error");
       } else {
         res.status(200).send("Status updated successfully");
@@ -1363,7 +1364,7 @@ app.post("/updateLoanAmount", async (req, res) => {
           try {
             // Fetch the last id from the income_expense_bill_items table
             const lastIdQuery2 =
-              "SELECT id FROM income_expence_bill_items ORDER BY id DESC LIMIT 1";
+              "SELECT * FROM income_expence_bill_items ORDER BY id DESC LIMIT 1";
             const lastIdResult2 = await queryAsync(lastIdQuery2);
 
             let newId2;
@@ -1409,7 +1410,7 @@ app.post("/updateLoanAmount", async (req, res) => {
 
             // Fetch the last id from the income_expense table
             const lastIdQuery3 =
-              "SELECT id FROM income_expence ORDER BY id DESC LIMIT 1";
+              "SELECT * FROM income_expence ORDER BY id DESC LIMIT 1";
             const lastIdResult3 = await queryAsync(lastIdQuery3);
 
             let newId3;
@@ -1877,9 +1878,8 @@ app.post("/insertOpeningBalance", (req, res) => {
     }
 
     // Check if a record already exists for the provided month and year
-    const checkRecordQuery =
-      "SELECT * FROM opening_bala WHERE mnth = ? AND yr = ?";
-    db.query(checkRecordQuery, [month, year], (err, result) => {
+    const checkRecordQuery = "SELECT * FROM opening_bala WHERE dt = ?";
+    db.query(checkRecordQuery, [date], (err, result) => {
       if (err) {
         console.error("Error checking existing record:", err);
         return res.status(500).json({ error: "Internal Server Error" });
@@ -1888,7 +1888,7 @@ app.post("/insertOpeningBalance", (req, res) => {
       if (result.length > 0) {
         // Record already exists for the provided month and year
         return res.status(409).json({
-          message: "Deposit detail is already inserted for this month",
+          message: "Deposit detail is already inserted for this Date",
         });
       } else {
         // Insert data into the opening_bala table
@@ -1977,6 +1977,7 @@ app.post("/updateOpeningDetail", (req, res) => {
   const month = ("0" + (parsedDate.getMonth() + 1)).slice(-2); // Format with two digits
   const year = parsedDate.getFullYear();
   const day = ("0" + parsedDate.getDate()).slice(-2); // Format with two digits
+  console.log(day);
 
   // Check if the day is 1
   if (day === "01") {
@@ -2047,7 +2048,7 @@ app.post("/saveData", async (req, res) => {
       const item = values[i];
       const id = idValues[i];
       await queryAsync(
-        "INSERT INTO income_expence_bill_items (id, bill_no, item_nm, amt, qty, qty_amt, bill_amt, bill_kind, bill_dt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO income_expence_bill_items (id, bill_no, item_nm, amt, qty, qty_amt, bill_amt, bill_kind, bill_dt, pawn_ticket_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')",
         [
           id,
           bill_no,
@@ -2064,9 +2065,9 @@ app.post("/saveData", async (req, res) => {
 
     // After successful insertion, insert data into income_expence table
     await queryAsync(
-      "INSERT INTO income_expence (id, bill_no, bill_title, no_of_item, tot_amt, bill_dt, bill_typ, bill_kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO income_expence (id, bill_no, bill_title, no_of_item, tot_amt, bill_dt, bill_typ, bill_kind, pawn_ticket_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '')",
       [
-        newId,
+        bill_no,
         bill_no,
         values1.billTitle,
         length,
@@ -2084,8 +2085,7 @@ app.post("/saveData", async (req, res) => {
   }
 });
 
-//pay
-app.get("/getLoanBySearchh", (req, res) => {
+app.get("/getLoanBySearchh", async (req, res) => {
   const { mode, value } = req.query;
 
   let query = "";
@@ -2104,6 +2104,7 @@ app.get("/getLoanBySearchh", (req, res) => {
       return;
   }
 
+  // Execute the query
   db.query(query, (err, results) => {
     if (err) {
       console.error("Error fetching loan by search:", err);
@@ -2188,8 +2189,8 @@ app.post("/pay", async (req, res) => {
 
     if (artDetail === "adv") {
       paymentQuery = `
-        INSERT INTO payment_details (id, pawn_ticked_id, gl_no, name, mob, interest_perc, payable_amt, paid_date, mn, yr, interest, paid_amt, tot_paid, bal_amt, koottu_vatti, koottu_vatti_intrst, koottu_vatti_amt, koottu_vatti_intrst_amt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO payment_details (id, pawn_ticked_id, gl_no, name, mob, interest_perc, payable_amt, paid_date, mn, yr, interest, paid_amt, tot_paid, bal_amt, koottu_vatti, koottu_vatti_intrst, koottu_vatti_amt, koottu_vatti_intrst_amt, article, weight, drop_article, drop_date, closed_stus, closed_dt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '0', '', '0000-00-00', '', '0000-00-00')
       `;
       const paymentValues = [
         newId,
@@ -2492,8 +2493,8 @@ app.post("/pay", async (req, res) => {
         }
       } else {
         paymentQuery = `
-          INSERT INTO payment_details (id, pawn_ticked_id, gl_no, name, mob, interest_perc, payable_amt, paid_date, mn, yr, interest, paid_amt, tot_paid, bal_amt, koottu_vatti, koottu_vatti_intrst, koottu_vatti_amt, koottu_vatti_intrst_amt, article, weight, drop_article, drop_date)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO payment_details (id, pawn_ticked_id, gl_no, name, mob, interest_perc, payable_amt, paid_date, mn, yr, interest, paid_amt, tot_paid, bal_amt, koottu_vatti, koottu_vatti_intrst, koottu_vatti_amt, koottu_vatti_intrst_amt, article, weight, drop_article, drop_date, closed_stus, closed_dt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0000-00-00', '0000-00-00')
         `;
         const paymentValues = [
           newId,
@@ -2536,7 +2537,7 @@ app.post("/pay", async (req, res) => {
         const updateValues2 = [date, artDetail];
         await queryAsync(updateQuery2, updateValues2);
         const updateQuery1 = `
-          INSERT INTO income_expence (id, bill_no, bill_title, no_of_item, tot_amt, bill_dt, bill_typ, bill_kind, pawn_ticket_id) 
+          INSERT INTO income_expence (id, bill_no, bill_title, no_of_item, tot_amt, bill_dt, bill_typ, bill_kind, pawn_ticket_id)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const updateValues1 = [
@@ -2590,7 +2591,7 @@ app.get("/getPayBySearch/:id", (req, res) => {
   const loanId = req.params.id;
 
   db.query(
-    "SELECT * FROM payment_details WHERE pawn_ticked_id = ?",
+    "SELECT * FROM payment_details WHERE pawn_ticked_id = ? ORDER BY id DESC",
     [loanId],
     (error, results) => {
       if (error) {
@@ -2970,6 +2971,7 @@ app.post("/saveClosingBalance", async (req, res) => {
 // Route to handle file upload
 app.post("/uploadImage", async (req, res) => {
   try {
+    // Check if files were uploaded
     if (!req.files || Object.keys(req.files).length === 0) {
       return res.status(400).json({ error: "No files were uploaded." });
     }
@@ -2987,10 +2989,7 @@ app.post("/uploadImage", async (req, res) => {
     if (result.length > 0 && result[0].cust_pic) {
       // If an existing image is found, delete it from the log folder
       const existingFileName = result[0].cust_pic;
-      // const existingFilePath = `../sea_pawn_bk_end/src/log/${existingFileName}`;
-      const existingFilePath = path.join(__dirname, "log",
-        existingFileName
-      );
+      const existingFilePath = path.join(__dirname, "log", existingFileName);
 
       fs.unlink(existingFilePath, (err) => {
         if (err) {
@@ -3000,8 +2999,9 @@ app.post("/uploadImage", async (req, res) => {
         }
       });
     }
-    const filePath = path.join(__dirname, "log",fileName);
-    console.log(filePath);
+
+    // Store the uploaded file locally
+    const filePath = path.join(__dirname, "log", fileName);
     uploadedFile.mv(filePath, async (err) => {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -3100,6 +3100,7 @@ app.get("/custPic/:id", (req, res) => {
       }
 
       const logoPath = path.join(__dirname, "log", logoFileName);
+      // console.log(logoPath);
 
       // Send the image as a response
       res.sendFile(logoPath, (err) => {
